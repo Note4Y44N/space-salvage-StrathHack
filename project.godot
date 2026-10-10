@@ -10,9 +10,15 @@ config_version=5
 
 [application]
 
-config/name="hackathon"
+config/name="Space Salvage"
+run/main_scene="res://menu.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+GameState="*res://game_state.gd"
+NetworkManager="*res://network_manager.gd"
 
 [display]
 
