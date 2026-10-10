@@ -50,8 +50,8 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 
-func spawn_point(peer_id: int) -> Vector2:
-	return Vector2(-160.0 + float(absi(peer_id) % 8) * 45.0, HALF_SIZE.y - 30.0)
+func spawn_point(slot: int) -> Vector2:
+	return Vector2(-160.0 + float(absi(slot) % 8) * 45.0, HALF_SIZE.y - 30.0)
 
 
 func _on_body_entered(body: Node2D) -> void:

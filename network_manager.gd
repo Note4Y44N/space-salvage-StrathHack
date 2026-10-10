@@ -54,6 +54,8 @@ func join(ip: String) -> Error:
 ## Disconnect and go back to the menu, optionally showing an error there.
 func leave(error_text := "") -> void:
 	last_error = error_text
+	if error_text != "":
+		print("[%s] %s" % [player_name, error_text])
 	if multiplayer.multiplayer_peer:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
@@ -61,13 +63,33 @@ func leave(error_text := "") -> void:
 	get_tree().change_scene_to_file.call_deferred("res://menu.tscn")
 
 
-## LAN IPv4 addresses friends can use to join this machine.
+## LAN IPv4 addresses friends can use to join this machine, best first:
+## real Wi-Fi/Ethernet before virtual adapters (VirtualBox, Hyper-V/WSL,
+## Bluetooth...) that friends can't reach.
 func local_ips() -> PackedStringArray:
+	var scored := []
+	for iface in IP.get_local_interfaces():
+		var label := String(iface["friendly"]).to_lower()
+		for ip: String in iface["addresses"]:
+			if ip.count(".") == 3 and not ip.begins_with("127.") and not ip.begins_with("169.254."):
+				scored.append([_adapter_score(label, ip), ip])
+	scored.sort_custom(func(a: Array, b: Array) -> bool: return a[0] > b[0])
 	var ips := PackedStringArray()
-	for ip in IP.get_local_addresses():
-		if ip.count(".") == 3 and not ip.begins_with("127.") and not ip.begins_with("169.254."):
-			ips.append(ip)
+	for entry in scored:
+		ips.append(entry[1])
 	return ips
+
+
+func _adapter_score(label: String, ip: String) -> int:
+	if ip.begins_with("192.168.56."):  # VirtualBox's default host-only network
+		return 0
+	for word in ["virtual", "vmware", "vethernet", "hyper-v", "wsl", "bluetooth", "loopback", "docker"]:
+		if word in label:
+			return 0
+	for word in ["wi-fi", "wifi", "wlan", "wireless"]:
+		if word in label:
+			return 3
+	return 2 if "ethernet" in label else 1
 
 
 func _parse_cmdline() -> void:
@@ -92,15 +114,19 @@ func _parse_cmdline() -> void:
 	if DisplayServer.get_name() == "headless":
 		Engine.max_fps = 60
 		
-func my_code() -> String: 
+
+
+## Short join code: the end of this machine's IP. my_code() is the last number
+## (e.g. "144"); my_code(2) is the last two (e.g. "117.144"), for big networks
+## where the third number differs between laptops.
+func my_code(part_count := 1) -> String:
 	var ips := local_ips()
 	if ips.is_empty():
 		return ""
 	var parts := ips[0].split(".")
-	return parts[2] + "." + parts[3]
-	
-	
-	
+	return ".".join(parts.slice(4 - part_count))
+
+
 func code_to_ip(code: String) -> String:	
 	var code_parts := code.split(".")
 	var ips := local_ips()

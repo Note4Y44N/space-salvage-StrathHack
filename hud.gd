@@ -54,7 +54,7 @@ func _process(_delta: float) -> void:
 			return
 		player.blackout_changed.connect(_on_blackout)
 		if multiplayer.is_server() and not NetworkManager.local_ips().is_empty():
-			ip_label.text = "Hosting - friends join: " + ", ".join(NetworkManager.local_ips())
+			ip_label.text = "Join code: %s   (if that fails: %s)" % [NetworkManager.my_code(), NetworkManager.my_code(2)]
 
 	var ratio := clampf(player.oxygen / GameState.oxygen_capacity(), 0.0, 1.0)
 	var low_air := ratio < Player.LOW_OXYGEN and not player.in_station
@@ -131,6 +131,13 @@ func _hint(low_air: bool) -> String:
 		return "Walk out an airlock to go salvaging, or stay on the radar"
 	if low_air:
 		return "LOW OXYGEN - GET BACK TO THE STATION!"
+	var relic := player.carried_relic()
+	if relic:
+		if relic.carriers.size() < HeavyRelic.CARRIERS_NEEDED:
+			return "Too heavy! Get a crewmate to grab it too  (E: let go)"
+		return "Haul it home together!  (E: let go)"
+	if player.nearest_relic():
+		return "E: grab the heavy relic (needs %d crew)" % HeavyRelic.CARRIERS_NEEDED
 	return ""
 
 
@@ -168,6 +175,11 @@ func _draw_radar() -> void:
 	for loot: Loot in get_tree().get_nodes_in_group("loot"):
 		if loot.active:
 			radar.draw_circle(_radar_point(loot.position, c, r), 1.5 + loot.tier, Loot.TIER_COLORS[loot.tier])
+	for relic: HeavyRelic in get_tree().get_nodes_in_group("relics"):
+		if relic.active:
+			var p := _radar_point(relic.position, c, r)
+			radar.draw_colored_polygon(PackedVector2Array([p + Vector2(0, -7), p + Vector2(6, 0), p + Vector2(0, 7), p + Vector2(-6, 0)]), HeavyRelic.GLOW)
+			radar.draw_string(font, p + Vector2(8, 4), "$%d" % HeavyRelic.VALUE, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, HeavyRelic.GLOW)
 	radar.draw_rect(Rect2(c - Vector2(7, 4), Vector2(14, 8)), Color.WHITE)
 
 	for other: Player in get_tree().get_nodes_in_group("players"):
@@ -182,9 +194,12 @@ func _draw_radar() -> void:
 
 	var legend_y := c.y + r + 20.0
 	for tier in Loot.TIER_NAMES.size():
-		var x := 40.0 + tier * 95.0
+		var x := 10.0 + tier * 75.0
 		radar.draw_circle(Vector2(x, legend_y - 4.0), 2.5 + tier, Loot.TIER_COLORS[tier])
 		radar.draw_string(font, Vector2(x + 8.0, legend_y), Loot.TIER_NAMES[tier], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(RADAR_GREEN, 0.8))
+	var heavy := Vector2(235.0, legend_y - 4.0)
+	radar.draw_colored_polygon(PackedVector2Array([heavy + Vector2(0, -6), heavy + Vector2(5, 0), heavy + Vector2(0, 6), heavy + Vector2(-5, 0)]), HeavyRelic.GLOW)
+	radar.draw_string(font, heavy + Vector2(8, 4), "2-crew", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(RADAR_GREEN, 0.8))
 
 
 func _radar_point(world_pos: Vector2, center: Vector2, radius: float) -> Vector2:
@@ -192,7 +207,7 @@ func _radar_point(world_pos: Vector2, center: Vector2, radius: float) -> Vector2
 	return center + offset.limit_length(radius - 4.0)
 
 
-# --- Building the UI ---------------------------------------------------------
+#  Building the UI 
 
 func _build_ui() -> void:
 	var root := Control.new()
@@ -232,8 +247,7 @@ func _build_ui() -> void:
 	hint_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	hint_label.offset_top = -64.0
 	hint_label.offset_bottom = -28.0
-
-	ip_label = _label(root, 13, Color(0.7, 0.75, 0.85))
+	ip_label = _label(root, 22, Color(1.0, 0.85, 0.3))
 	ip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	ip_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	ip_label.offset_top = -24.0

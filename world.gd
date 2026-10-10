@@ -12,6 +12,8 @@ const LOOT_SEED := 12345
 const LOOT_COUNT := 160
 const LOOT_MIN_DIST := 450.0
 const LOOT_MAX_DIST := 3400.0
+const RELIC_DISTANCES := [1500.0, 2100.0, 2700.0]  # one heavy relic at each distance
+const JOIN_TIMEOUT := 10.0  # seconds before a join attempt gives up
 
 ## The "Discord game" twist: space is dark, divers only see their helmet light,
 ## and whoever is in the station gets the radar. Turn off to make it easy.
@@ -30,6 +32,7 @@ func _ready() -> void:
 	spawner.spawn_path = spawner.get_path_to(players)
 	spawner.spawn_function = _spawn_player
 	_spawn_loot()
+	_spawn_relics()
 	add_child(SpaceBackground.new())
 	if DARKNESS_ENABLED:
 		var darkness := CanvasModulate.new()
@@ -50,6 +53,9 @@ func _ready() -> void:
 		_add_player(1, NetworkManager.player_name)
 		if NetworkManager.dev_money > 0:
 			GameState.add_money(NetworkManager.dev_money)
+	else:
+		# ENet can take ~30 s to give up on a wrong address; fail faster and clearer.
+		get_tree().create_timer(JOIN_TIMEOUT).timeout.connect(_on_join_timeout)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -78,7 +84,18 @@ func register_player(player_name: String) -> void:
 
 func _add_player(id: int, player_name: String) -> void:
 	if not players.has_node(str(id)):
-		spawner.spawn({"id": id, "name": player_name})
+		spawner.spawn({"id": id, "name": player_name, "look": _free_look()})
+
+
+## The first sprite look nobody is wearing yet (wraps around past 8 players).
+func _free_look() -> int:
+	var taken := []
+	for player: Player in players.get_children():
+		taken.append(player.look)
+	for look in Player.LOOKS:
+		if look not in taken:
+			return look
+	return players.get_child_count() % Player.LOOKS
 
 
 ## Runs on every peer (host and clients) with the same data.
@@ -87,7 +104,8 @@ func _spawn_player(data: Variant) -> Node:
 	var player: Player = PLAYER_SCENE.instantiate()
 	player.name = str(id)
 	player.display_name = data["name"]
-	player.position = station.spawn_point(id)
+	player.look = data["look"]
+	player.position = station.spawn_point(player.look)
 	return player
 
 
@@ -101,7 +119,16 @@ func _on_peer_disconnected(id: int) -> void:
 
 
 func _on_connection_failed() -> void:
-	NetworkManager.leave("Could not connect to %s." % NetworkManager.join_ip)
+	NetworkManager.leave(_join_help())
+
+
+func _on_join_timeout() -> void:
+	if multiplayer.multiplayer_peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		NetworkManager.leave(_join_help())
+
+
+func _join_help() -> String:
+	return "Couldn't reach %s. Check the join code, that you're on the same Wi-Fi as the host, and that the host allowed Godot through the firewall." % NetworkManager.join_ip
 
 
 func _on_server_disconnected() -> void:
@@ -126,6 +153,20 @@ func _spawn_loot() -> void:
 		loot_root.add_child(loot)
 
 
+## Heavy relics: also deterministic, but the host streams their position.
+func _spawn_relics() -> void:
+	var relic_root := Node2D.new()
+	relic_root.name = "Relics"
+	add_child(relic_root)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = LOOT_SEED + 1
+	for i in RELIC_DISTANCES.size():
+		var relic := HeavyRelic.new()
+		relic.name = "Relic%d" % i
+		relic.position = Vector2.from_angle(rng.randf() * TAU) * RELIC_DISTANCES[i]
+		relic_root.add_child(relic)
+
+
 ## Tell a late joiner which loot is already gone.
 func _send_loot_state(peer_id: int) -> void:
 	var taken := PackedStringArray()
@@ -147,3 +188,5 @@ func sync_loot(taken: PackedStringArray) -> void:
 func _on_game_reset() -> void:
 	for loot: Loot in get_tree().get_nodes_in_group("loot"):
 		loot.reset()
+	for relic: HeavyRelic in get_tree().get_nodes_in_group("relics"):
+		relic.reset()
