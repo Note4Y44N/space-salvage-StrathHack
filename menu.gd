@@ -36,7 +36,7 @@ func _build_ui() -> void:
 	_add_label(box, "SPACE SALVAGE", 56, Color(1.0, 0.82, 0.3))
 	_add_label(box, "Grab space gold, mind your air, and talk your crew home.", 16, Color(0.75, 0.8, 0.95))
 	name_edit = _add_field(box, "Your name", NetworkManager.player_name)
-	ip_edit = _add_field(box, "Host IP", NetworkManager.join_ip)
+	ip_edit = _add_field(box, "Join code or IP", NetworkManager.join_ip)
 	ip_edit.text_submitted.connect(func(_text: String) -> void: _start(false))
 
 	var buttons := HBoxContainer.new()
@@ -57,7 +57,7 @@ func _start(as_host: bool) -> void:
 	var typed_name := name_edit.text.strip_edges().left(16)
 	var typed_ip := ip_edit.text.strip_edges()
 	NetworkManager.player_name = typed_name if typed_name != "" else "Spacer"
-	NetworkManager.join_ip = typed_ip if typed_ip != "" else "127.0.0.1"
+	NetworkManager.join_ip = NetworkManager.code_to_ip(typed_ip) if typed_ip != "" else "127.0.0.1"
 	NetworkManager.want_host = as_host
 	NetworkManager.last_error = ""
 	get_tree().change_scene_to_file("res://world.tscn")

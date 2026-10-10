@@ -54,7 +54,7 @@ func _process(_delta: float) -> void:
 			return
 		player.blackout_changed.connect(_on_blackout)
 		if multiplayer.is_server() and not NetworkManager.local_ips().is_empty():
-			ip_label.text = "Hosting - friends join: " + ", ".join(NetworkManager.local_ips())
+			ip_label.text = "Join code: " + NetworkManager.my_code()
 
 	var ratio := clampf(player.oxygen / GameState.oxygen_capacity(), 0.0, 1.0)
 	var low_air := ratio < Player.LOW_OXYGEN and not player.in_station
@@ -192,7 +192,7 @@ func _radar_point(world_pos: Vector2, center: Vector2, radius: float) -> Vector2
 	return center + offset.limit_length(radius - 4.0)
 
 
-# --- Building the UI ---------------------------------------------------------
+#  Building the UI 
 
 func _build_ui() -> void:
 	var root := Control.new()
@@ -232,8 +232,7 @@ func _build_ui() -> void:
 	hint_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	hint_label.offset_top = -64.0
 	hint_label.offset_bottom = -28.0
-
-	ip_label = _label(root, 13, Color(0.7, 0.75, 0.85))
+	ip_label = _label(root, 22, Color(1.0, 0.85, 0.3))
 	ip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	ip_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	ip_label.offset_top = -24.0
