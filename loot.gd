@@ -63,6 +63,7 @@ func request_collect() -> void:
 
 @rpc("authority", "call_local", "reliable")
 func confirm(collector_id: int) -> void:
+	Effects.burst(self, global_position, TIER_COLORS[tier], 16 + tier * 12, 120.0 + tier * 60.0)
 	set_collected()
 	if collector_id == multiplayer.get_unique_id():
 		var player := get_node_or_null("../../Players/%d" % collector_id) as Player

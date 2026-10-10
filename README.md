@@ -45,6 +45,7 @@ Drift out of the station in zero-g, grab gold (the further out, the more it's wo
 | `hud.gd` | Stats, oxygen bar, shop, radar, event feed, blackout fade, win screen. |
 | `dev_bot.gd` | Autopilot used by `--bot`. |
 | `tethers.gd` | Who is roped to whom (the rope physics are in `player.gd`). |
+| `effects.gd` | Particle helpers: one-off glowing bursts and the looping jetpack exhaust. |
 | `heavy_relic.gd` | Two-player relics: the host simulates them and streams their position. |
 
 ## Credits

@@ -8,8 +8,13 @@ const HALF_SIZE := Vector2(320.0, 150.0)  # pressurised interior; the deck is th
 const AIRLOCK_HEIGHT := 130.0  # Taller doors
 const WALL := 12.0  # Less wide / thinner door frame walls
 const BEACON_POS := Vector2(270.0, -276.0)
+const POD_LAUNCH_TIME := 3.5  # seconds of lift-off before the win screen (hud.gd waits this long)
 
 var _beacon: PointLight2D
+var _pod_lift := 0.0  # how far the escape pod has flown up
+var _pod_flame: CPUParticles2D
+var _pod_light: PointLight2D
+var _pod_rumble := false
 
 
 func _ready() -> void:
@@ -76,10 +81,41 @@ func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 	body_exited.connect(_on_body_exited)
 
+	_pod_flame = Effects.thruster(Color(1.0, 0.6, 0.2), 7.0)
+	_pod_flame.amount = 120
+	_pod_flame.direction = Vector2.DOWN
+	_pod_flame.initial_velocity_max = 260.0
+	add_child(_pod_flame)
+	_pod_light = make_light(Vector2.ZERO, 260.0, Color(1.0, 0.75, 0.5), 0.0)  # lights the pod in flight
+	add_child(_pod_light)
+	GameState.game_won.connect(_launch_pod)
+	GameState.game_reset.connect(_reset_pod)
+
 
 func _process(_delta: float) -> void:
 	_beacon.energy = 0.4 + 0.8 * absf(sin(Time.get_ticks_msec() / 400.0))
+	_pod_flame.position = Vector2(0.0, -HALF_SIZE.y - WALL + _pod_lift)  # under the pod
+	_pod_light.position = _pod_flame.position + Vector2(0.0, -30.0)
 	queue_redraw()
+
+
+## Win: the repaired escape pod blasts off the roof.
+func _launch_pod() -> void:
+	_pod_flame.emitting = true
+	_pod_light.energy = 1.3
+	_pod_rumble = true
+	var tween := create_tween()
+	tween.tween_interval(0.8)  # engines fire, pod rumbles on the roof...
+	tween.tween_callback(func() -> void: _pod_rumble = false)
+	tween.tween_property(self, "_pod_lift", -1600.0, POD_LAUNCH_TIME - 0.8).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)  # ...then lift-off
+	tween.tween_callback(func() -> void: _pod_flame.emitting = false)
+
+
+func _reset_pod() -> void:
+	_pod_lift = 0.0
+	_pod_rumble = false
+	_pod_flame.emitting = false
+	_pod_light.energy = 0.0
 
 
 func spawn_point(slot: int) -> Vector2:
@@ -171,7 +207,8 @@ func _draw() -> void:
 	_draw_console(Vector2(225.0, hy), Color(0.3, 1.0, 0.5), "RADAR", font)
 
 	# Escape pod docked on the roof, with one light per repair part.
-	var pod := Rect2(-80.0, -hy - WALL - 64.0, 160.0, 64.0)
+	var shake := randf_range(-2.0, 2.0) if _pod_rumble else 0.0
+	var pod := Rect2(-80.0 + shake, -hy - WALL - 64.0 + _pod_lift, 160.0, 64.0)
 	draw_circle(Vector2(pod.position.x, pod.get_center().y), 32.0, Color(0.85, 0.85, 0.9))
 	draw_circle(Vector2(pod.end.x, pod.get_center().y), 32.0, Color(0.85, 0.85, 0.9))
 	draw_rect(pod, Color(0.85, 0.85, 0.9))
