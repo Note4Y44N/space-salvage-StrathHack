@@ -13,6 +13,8 @@ signal game_reset
 const OXYGEN_COSTS := [100, 250, 500]
 const SPEED_COSTS := [100, 250, 500]
 const PART_COSTS := [250, 400, 550, 700, 900]
+const TETHER_COSTS := [100, 250, 500]
+const TETHER_LENGTHS := [500.0, 700.0, 950.0, 1250.0]  # rope between teammates, px (10 px = 1 m)
 const OXYGEN_CAPACITY := [25.0, 38.0, 55.0, 75.0]  # seconds of air outside the station
 const THRUST := [520.0, 640.0, 780.0, 940.0]        # zero-g acceleration, px/s^2
 const MAX_SPEED := [300.0, 360.0, 430.0, 520.0]     # px/s
@@ -22,6 +24,7 @@ var money := 0
 var oxygen_level := 0
 var speed_level := 0
 var parts := 0
+var tether_level := 0
 var total_earned := 0
 
 
@@ -37,6 +40,10 @@ func thrust() -> float:
 	return THRUST[speed_level]
 
 
+func tether_length() -> float:
+	return TETHER_LENGTHS[tether_level]
+
+
 func max_speed() -> float:
 	return MAX_SPEED[speed_level]
 
@@ -50,6 +57,7 @@ func level_of(kind: String) -> int:
 		"oxygen": return oxygen_level
 		"speed": return speed_level
 		"part": return parts
+		"tether": return tether_level
 	return 0
 
 
@@ -60,6 +68,7 @@ func cost_of(kind: String) -> int:
 		"oxygen": costs = OXYGEN_COSTS
 		"speed": costs = SPEED_COSTS
 		"part": costs = PART_COSTS
+		"tether": costs = TETHER_COSTS
 	var level := level_of(kind)
 	return costs[level] if level < costs.size() else -1
 
@@ -69,7 +78,7 @@ func request_buy(kind: String) -> void:
 
 
 func send_state_to(peer_id: int) -> void:
-	sync_state.rpc_id(peer_id, money, oxygen_level, speed_level, parts, total_earned)
+	sync_state.rpc_id(peer_id, money, oxygen_level, speed_level, parts, tether_level, total_earned)
 
 
 func reset() -> void:
@@ -77,6 +86,7 @@ func reset() -> void:
 	oxygen_level = 0
 	speed_level = 0
 	parts = 0
+	tether_level = 0
 	total_earned = 0
 
 
@@ -107,16 +117,20 @@ func buy_upgrade(kind: String, buyer_name: String) -> void:
 		"part":
 			parts += 1
 			announce.rpc("%s fitted pod repair part %d/%d!" % [buyer_name, parts, PARTS_NEEDED])
+		"tether":
+			tether_level += 1
+			announce.rpc("%s bought longer tethers!" % buyer_name)
 	_broadcast()
 
 
 @rpc("authority", "call_local", "reliable")
-func sync_state(new_money: int, new_oxygen_level: int, new_speed_level: int, new_parts: int, new_total: int) -> void:
+func sync_state(new_money: int, new_oxygen_level: int, new_speed_level: int, new_parts: int, new_tether_level: int, new_total: int) -> void:
 	var had_won := has_won()
 	money = new_money
 	oxygen_level = new_oxygen_level
 	speed_level = new_speed_level
 	parts = new_parts
+	tether_level = new_tether_level
 	total_earned = new_total
 	print("[%s] team $%d  tank %d  jetpack %d  parts %d" % [NetworkManager.player_name, money, oxygen_level, speed_level, parts])
 	state_changed.emit()
@@ -139,7 +153,7 @@ func restart() -> void:
 
 
 func _broadcast() -> void:
-	sync_state.rpc(money, oxygen_level, speed_level, parts, total_earned)
+	sync_state.rpc(money, oxygen_level, speed_level, parts, tether_level, total_earned)
 
 
 func _register_inputs() -> void:
@@ -151,6 +165,8 @@ func _register_inputs() -> void:
 	_add_action("buy_oxygen", [KEY_1])
 	_add_action("buy_speed", [KEY_2])
 	_add_action("buy_part", [KEY_3])
+	_add_action("buy_tether", [KEY_4])
+	_add_action("radar", [KEY_R])
 
 
 func _add_action(action: StringName, keys: Array) -> void:

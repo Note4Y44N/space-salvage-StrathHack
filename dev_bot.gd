@@ -17,6 +17,11 @@ static func steer(p: Player) -> Vector2:
 		_try_buy()
 		if p.oxygen < capacity - 0.5:
 			return Vector2.ZERO  # catch our breath
+	# Rope too tight? Drift back towards whoever (or whatever) we are tied to.
+	if not p.in_station and p.rope_strain > 0.9:
+		var link: Array = Tethers.links_of(p)[0]
+		var other := Tethers.other_end(link, p)
+		return _steer_to(p, other.global_position if other else Tethers.STATION_ANCHOR)
 	var going_home := p.carried_count >= CARGO_TARGET or p.oxygen < capacity * 0.5
 	if going_home:
 		return Vector2.ZERO if p.in_station else _steer_to(p, Vector2.ZERO)
@@ -52,7 +57,7 @@ static func _nearest_loot(p: Player) -> Loot:
 static func _try_buy() -> void:
 	if Time.get_ticks_msec() - _last_buy_msec < 500:
 		return
-	for kind in ["oxygen", "speed", "part"]:
+	for kind in ["oxygen", "speed", "tether", "part"]:
 		var cost := GameState.cost_of(kind)
 		if cost >= 0 and cost <= GameState.money:
 			_last_buy_msec = Time.get_ticks_msec()

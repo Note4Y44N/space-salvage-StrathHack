@@ -32,6 +32,18 @@ const LOOKS := 8  # 4 suit colours x 2 sheets
 const SPRITE_SCALE := 2.5
 enum Frame { IDLE, RUN_1, RUN_2, CLIMB, REACH, DEAD, FLOAT }
 
+# Tethers (who is roped to whom: tethers.gd). Past its length a rope pulls you
+# back; stretch it to Tethers.SNAP_STRETCH and it snaps and you black out.
+const ROPE_STIFFNESS := 6.0    # pull strength per pixel of stretch...
+const MAX_ROPE_PULL := 320.0   # ...capped below jetpack thrust, so pushing on can still snap it
+const ROPE_DAMPING := 2.0      # how quickly moving-apart speed is soaked up
+const REEL_SPEED := 90.0       # a new rope starts slack and reels in this fast (px/s)
+
+# Health: with an empty tank you suffocate over about 5 seconds.
+const MAX_HEALTH := 100.0
+const SUFFOCATE_RATE := 20.0   # health lost per second with no air
+const HEAL_RATE := 10.0        # health regained per second while breathing (5x in the station)
+
 # Replicated from the authority to everyone (see _setup_replication).
 var net_pos := Vector2.ZERO
 var oxygen := 25.0
@@ -41,6 +53,8 @@ var facing := 1
 var thrust := Vector2.ZERO
 var in_station := false  # the station's body_entered sets this on spawn
 var is_blacked_out := false
+var health := MAX_HEALTH
+var on_radar := false  # radar duty: sees the radar, not tethered
 
 var display_name := "Spacer"  # set by the spawn function on every peer
 var look := 0                 # which of the 8 sprite looks, also set by the spawn function
@@ -50,6 +64,8 @@ var _lamp: PointLight2D
 var _sprite: Sprite2D
 var _last_pos := Vector2.ZERO
 var _anim_time := 0.0
+var _rope_rest := {}     # rope partner id (0 = station) -> current rope length
+var rope_strain := 0.0  # how stretched our tightest rope is (1.0 = just taut), for the HUD
 
 @onready var camera: Camera2D = $Camera2D
 
@@ -61,7 +77,7 @@ func _enter_tree() -> void:
 
 func _setup_replication() -> void:
 	var config := SceneReplicationConfig.new()
-	for property in ["net_pos", "oxygen", "carried_value", "carried_count", "facing", "thrust", "in_station", "is_blacked_out"]:
+	for property in ["net_pos", "oxygen", "carried_value", "carried_count", "facing", "thrust", "in_station", "is_blacked_out", "health", "on_radar"]:
 		var path := NodePath(".:" + property)
 		config.add_property(path)
 		config.property_set_spawn(path, false)
@@ -120,6 +136,9 @@ func _physics_process(delta: float) -> void:
 		_move_in_station(input, delta)
 	else:
 		_move_in_space(input, delta)
+	_pull_ropes(delta)
+	if is_blacked_out:
+		return  # a rope snapped
 	move_and_slide()
 	net_pos = global_position
 	_update_oxygen(delta)
@@ -128,6 +147,8 @@ func _physics_process(delta: float) -> void:
 			sell()
 		else:
 			toggle_grab()
+	if Input.is_action_just_pressed("radar") and in_station:
+		set_on_radar(not on_radar)
 
 
 func _process(delta: float) -> void:
@@ -171,7 +192,8 @@ func _animate(delta: float) -> void:
 	_sprite.frame = (look % 4) * 7 + pose
 	_sprite.flip_h = facing < 0
 	var low_air := not in_station and oxygen < GameState.oxygen_capacity() * LOW_OXYGEN
-	var flashing := low_air and fmod(Time.get_ticks_msec() / 200.0, 2.0) < 1.0
+	var flash_speed := 80.0 if oxygen <= 0.0 else 200.0  # faster when suffocating
+	var flashing := low_air and fmod(Time.get_ticks_msec() / flash_speed, 2.0) < 1.0
 	_sprite.modulate = Color(1.0, 0.45, 0.45) if flashing else Color.WHITE
 
 
@@ -194,19 +216,80 @@ func _move_in_space(input: Vector2, delta: float) -> void:
 	thrust = input
 
 
+## Air drains outside the station. With an empty tank you lose health instead,
+## and black out when it runs out (about 5 seconds).
 func _update_oxygen(delta: float) -> void:
 	if in_station:
 		oxygen = minf(GameState.oxygen_capacity(), oxygen + OXYGEN_REFILL_RATE * delta)
+		health = minf(MAX_HEALTH, health + HEAL_RATE * 5.0 * delta)
 		return
-	oxygen -= delta
-	if oxygen <= 0.0:
+	oxygen = maxf(0.0, oxygen - delta)
+	if oxygen > 0.0:
+		health = minf(MAX_HEALTH, health + HEAL_RATE * delta)
+		return
+	health -= SUFFOCATE_RATE * delta
+	if health <= 0.0:
 		_black_out()
+
+
+## Ropes pull us back when stretched past their length and snap (blacking us
+## out) when stretched too far. Each player only moves itself; the partner's
+## game does the same from its side, so both get pulled together.
+func _pull_ropes(delta: float) -> void:
+	rope_strain = 0.0
+	var current := {}
+	for link in Tethers.links_of(self):
+		var other := Tethers.other_end(link, self)
+		if other and other.is_blacked_out:
+			continue
+		var key := other.name.to_int() if other else 0
+		var anchor := other.global_position if other else Tethers.STATION_ANCHOR
+		var length := Tethers.rope_length(other == null)
+		var offset := anchor - global_position
+		var dist := offset.length()
+		# A new rope starts as long as the gap and reels in, so being paired
+		# with someone far away doesn't snap it straight away.
+		var rest: float = _rope_rest.get(key, maxf(length, dist))
+		rest = maxf(length, move_toward(rest, length, REEL_SPEED * delta))
+		current[key] = rest
+		rope_strain = maxf(rope_strain, dist / rest)
+		if dist > rest * Tethers.SNAP_STRETCH:
+			if other:
+				other.rope_snapped.rpc_id(key)  # it's one rope: they go down too
+			_black_out("%s's tether snapped" % display_name)
+			return
+		if dist > rest:
+			var dir := offset / dist
+			velocity += dir * minf((dist - rest) * ROPE_STIFFNESS, MAX_ROPE_PULL) * delta
+			var moving_apart := -velocity.dot(dir)
+			if moving_apart > 0.0:
+				velocity += dir * moving_apart * minf(1.0, ROPE_DAMPING * delta)
+	_rope_rest = current
+
+
+## Sent by our rope partner's game when the rope between us snapped.
+@rpc("any_peer", "call_remote", "reliable")
+func rope_snapped() -> void:
+	if is_multiplayer_authority() and not is_blacked_out:
+		_black_out("%s's tether snapped" % display_name)
+
+
+## R in the station: take the radar (and unclip your tether), or hand it back.
+func set_on_radar(value: bool) -> void:
+	if value == on_radar:
+		return
+	on_radar = value
+	_rope_rest.clear()
+	if on_radar:
+		GameState.announce.rpc("%s is on the radar" % display_name)
 
 
 ## Called by the station on every peer; only the authority's value counts.
 func set_in_station(value: bool) -> void:
 	if is_multiplayer_authority():
 		in_station = value
+		if not value:
+			set_on_radar(false)  # leaving the station means leaving the radar
 
 
 func can_collect() -> bool:
@@ -253,14 +336,16 @@ func sell() -> void:
 	carried_count = 0
 
 
-func _black_out() -> void:
+func _black_out(reason := "") -> void:
 	is_blacked_out = true
 	oxygen = 0.0
+	health = 0.0
 	velocity = Vector2.ZERO
+	var what := reason if reason != "" else "%s ran out of air" % display_name
 	if carried_value > 0:
-		GameState.announce.rpc("%s ran out of air and lost $%d of salvage!" % [display_name, carried_value])
+		GameState.announce.rpc("%s and lost $%d of salvage!" % [what, carried_value])
 	else:
-		GameState.announce.rpc("%s ran out of air!" % display_name)
+		GameState.announce.rpc(what + "!")
 	carried_value = 0
 	carried_count = 0
 	_shake = 0.6
@@ -275,16 +360,25 @@ func _respawn() -> void:
 	net_pos = global_position
 	velocity = Vector2.ZERO
 	oxygen = GameState.oxygen_capacity()
+	health = MAX_HEALTH
 	carried_value = 0
 	carried_count = 0
+	_rope_rest.clear()
 	is_blacked_out = false
 	camera.reset_smoothing()
 	blackout_changed.emit(false)
 
 
-# Drawn behind the sprite: jetpack flame and loot sack. Then the name tag.
+# Drawn behind the sprite: ropes, jetpack flame and loot sack. Then the name tag.
 func _draw() -> void:
 	if not is_blacked_out:
+		# Each rope is drawn once, by the first player on it.
+		for link in Tethers.links_of(self):
+			var other: Player = link[1]
+			if link[0] == self and not (other and other.is_blacked_out):
+				var end := to_local(other.global_position if other else Tethers.STATION_ANCHOR)
+				_draw_rope(end, Tethers.rope_length(other == null))
+
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2(facing, 1.0))  # mirror when facing left
 
 		# Jetpack flame from the back, pointing away from the thrust direction.
@@ -309,3 +403,19 @@ func _draw() -> void:
 	draw_string(font, Vector2(-60, -30), display_name, HORIZONTAL_ALIGNMENT_CENTER, 120.0, 12, color.lightened(0.3))
 	if carried_value > 0:
 		draw_string(font, Vector2(-60, 32), "$%d" % carried_value, HORIZONTAL_ALIGNMENT_CENTER, 120.0, 11, Color(1.0, 0.85, 0.3))
+
+
+## A rope from us to `end`: wobbly when slack, turning red as it nears snapping.
+func _draw_rope(end: Vector2, length: float) -> void:
+	var strain := end.length() / length
+	var color := Color(0.85, 0.8, 0.65)
+	if strain > 1.0:
+		color = color.lerp(Color(1.0, 0.2, 0.15), clampf((strain - 1.0) / (Tethers.SNAP_STRETCH - 1.0), 0.0, 1.0))
+	var slack := clampf((length - end.length()) * 0.08, 0.0, 30.0)
+	var normal := end.orthogonal().normalized()
+	var wobble := sin(Time.get_ticks_msec() / 500.0)
+	var points := PackedVector2Array()
+	for i in 17:
+		var t := i / 16.0
+		points.append(end * t + normal * sin(t * PI) * slack * wobble)
+	draw_polyline(points, color, 2.0)

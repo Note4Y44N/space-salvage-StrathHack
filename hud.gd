@@ -10,6 +10,7 @@ const SHOP := [
 	{"kind": "oxygen", "name": "Oxygen Tank", "key": "1", "action": "buy_oxygen"},
 	{"kind": "speed", "name": "Jetpack", "key": "2", "action": "buy_speed"},
 	{"kind": "part", "name": "Pod Repair Part", "key": "3", "action": "buy_part"},
+	{"kind": "tether", "name": "Longer Tether", "key": "4", "action": "buy_tether"},
 ]
 const GOLD := Color(1.0, 0.85, 0.3)
 const RADAR_GREEN := Color(0.3, 1.0, 0.5)
@@ -22,6 +23,8 @@ var stats_label: Label
 var depth_label: Label
 var oxygen_bar: ProgressBar
 var oxygen_fill: StyleBoxFlat
+var health_bar: ProgressBar
+var arrow: Control
 var crew_label: Label
 var hint_label: Label
 var ip_label: Label
@@ -60,19 +63,22 @@ func _process(_delta: float) -> void:
 	var low_air := ratio < Player.LOW_OXYGEN and not player.in_station
 	oxygen_bar.value = ratio
 	oxygen_fill.bg_color = Color(1.0, 0.3, 0.25) if low_air else Color(0.35, 0.8, 1.0)
+	health_bar.value = player.health / Player.MAX_HEALTH
 	money_label.text = "TEAM $%d" % GameState.money
-	stats_label.text = "Cargo: %d  ($%d)\nTank %d/3   Jetpack %d/3   Pod %d/%d" % [
-		player.carried_count, player.carried_value, GameState.oxygen_level,
-		GameState.speed_level, GameState.parts, GameState.PARTS_NEEDED]
+	stats_label.text = "Cargo: %d  ($%d)\nTank %d/3   Jetpack %d/3   Tether %d/3   Pod %d/%d" % [
+		player.carried_count, player.carried_value, GameState.oxygen_level, GameState.speed_level,
+		GameState.tether_level, GameState.parts, GameState.PARTS_NEEDED]
 	depth_label.text = "Distance from station: %d m" % int(player.global_position.length() / PX_PER_METRE)
 
 	shop_panel.visible = player.in_station
-	radar.visible = player.in_station
+	radar.visible = player.on_radar
+	arrow.queue_redraw()
 	if radar.visible:
 		radar.queue_redraw()
 	crew_label.text = _crew_status()
 	hint_label.text = _hint(low_air)
-	hint_label.modulate.a = 0.55 + 0.45 * sin(Time.get_ticks_msec() / 90.0) if low_air else 1.0
+	var urgent := low_air or player.rope_strain > 1.1
+	hint_label.modulate.a = 0.55 + 0.45 * sin(Time.get_ticks_msec() / 90.0) if urgent else 1.0
 
 	if player.in_station and not player.is_blacked_out:
 		for item in SHOP:
@@ -111,11 +117,11 @@ func _refresh_shop() -> void:
 
 
 func _crew_status() -> String:
-	if player.in_station:
+	if player.on_radar:
 		return "You're on the radar: talk your divers to the gold and back!"
 	var spotters := PackedStringArray()
 	for other: Player in get_tree().get_nodes_in_group("players"):
-		if other != player and other.in_station:
+		if other != player and other.on_radar:
 			spotters.append(other.display_name)
 	if spotters.is_empty():
 		return "Nobody is on the radar. You're flying blind!"
@@ -128,7 +134,13 @@ func _hint(low_air: bool) -> String:
 	if player.in_station:
 		if player.carried_value > 0:
 			return "Press E to sell your cargo ($%d)" % player.carried_value
-		return "Walk out an airlock to go salvaging, or stay on the radar"
+		if player.on_radar:
+			return "R: leave the radar and clip back onto a tether"
+		return "R: take the radar (unclips your tether)   or walk out an airlock to dive"
+	if player.oxygen <= 0.0:
+		return "OUT OF AIR - YOU'RE SUFFOCATING!"
+	if player.rope_strain > 1.1:
+		return "TETHER STRAINING - STAY TOGETHER OR IT SNAPS!"
 	if low_air:
 		return "LOW OXYGEN - GET BACK TO THE STATION!"
 	var relic := player.carried_relic()
@@ -138,7 +150,34 @@ func _hint(low_air: bool) -> String:
 		return "Haul it home together!  (E: let go)"
 	if player.nearest_relic():
 		return "E: grab the heavy relic (needs %d crew)" % HeavyRelic.CARRIERS_NEEDED
-	return ""
+	return _rope_status()
+
+
+func _rope_status() -> String:
+	var names := PackedStringArray()
+	for link in Tethers.links_of(player):
+		var other := Tethers.other_end(link, player)
+		names.append(other.display_name if other else "the station")
+	return "Tethered to " + " & ".join(names) if not names.is_empty() else ""
+
+
+## Arrow next to the player pointing home: big when close, smaller further out.
+func _draw_arrow() -> void:
+	if not is_instance_valid(player) or player.in_station or player.is_blacked_out:
+		return
+	var dist := player.global_position.length()
+	var size := lerpf(1.0, 0.35, clampf(dist / 3000.0, 0.0, 1.0))
+	var dir := -player.global_position.normalized()
+	var center := player.get_global_transform_with_canvas().origin + dir * 70.0
+	var side := dir.orthogonal()
+	var points := PackedVector2Array([
+		center + dir * 26.0 * size,
+		center - dir * 14.0 * size + side * 18.0 * size,
+		center - dir * 6.0 * size,
+		center - dir * 14.0 * size - side * 18.0 * size,
+	])
+	arrow.draw_colored_polygon(points, Color(GOLD, 0.9))
+	arrow.draw_polyline(points + PackedVector2Array([points[0]]), Color(0, 0, 0, 0.8), 2.0)
 
 
 func _on_blackout(is_out: bool) -> void:
@@ -181,6 +220,13 @@ func _draw_radar() -> void:
 			radar.draw_colored_polygon(PackedVector2Array([p + Vector2(0, -7), p + Vector2(6, 0), p + Vector2(0, 7), p + Vector2(-6, 0)]), HeavyRelic.GLOW)
 			radar.draw_string(font, p + Vector2(8, 4), "$%d" % HeavyRelic.VALUE, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, HeavyRelic.GLOW)
 	radar.draw_rect(Rect2(c - Vector2(7, 4), Vector2(14, 8)), Color.WHITE)
+
+	# Tethers between divers (or to the station).
+	for link in Tethers.links(get_tree()):
+		var a: Player = link[0]
+		var b: Player = link[1]
+		var end := _radar_point(b.global_position, c, r) if b else c
+		radar.draw_line(_radar_point(a.global_position, c, r), end, Color(0.85, 0.8, 0.65, 0.7), 1.5)
 
 	for other: Player in get_tree().get_nodes_in_group("players"):
 		if other.is_blacked_out:
@@ -234,6 +280,19 @@ func _build_ui() -> void:
 	oxygen_bar.add_theme_stylebox_override("fill", oxygen_fill)
 	oxygen_bar.add_theme_stylebox_override("background", bar_bg)
 	air_row.add_child(oxygen_bar)
+	var health_row := HBoxContainer.new()
+	stats.add_child(health_row)
+	_label(health_row, 16, Color.WHITE).text = "HP "
+	health_bar = ProgressBar.new()
+	health_bar.custom_minimum_size = Vector2(240, 12)
+	health_bar.max_value = 1.0
+	health_bar.step = 0.0
+	health_bar.show_percentage = false
+	var health_fill := StyleBoxFlat.new()
+	health_fill.bg_color = Color(0.9, 0.25, 0.3)
+	health_bar.add_theme_stylebox_override("fill", health_fill)
+	health_bar.add_theme_stylebox_override("background", bar_bg)
+	health_row.add_child(health_bar)
 	stats_label = _label(stats, 16, Color.WHITE)
 	depth_label = _label(stats, 16, Color(0.6, 0.9, 1.0))
 
@@ -250,7 +309,8 @@ func _build_ui() -> void:
 	ip_label = _label(root, 22, Color(1.0, 0.85, 0.3))
 	ip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	ip_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	ip_label.offset_top = -24.0
+	ip_label.offset_top = -34.0
+	ip_label.offset_bottom = -6.0
 	ip_label.offset_right = -16.0
 
 	# Left: the shop (only inside the station).
@@ -280,6 +340,13 @@ func _build_ui() -> void:
 	radar.offset_right = -16.0
 	radar.offset_top = 10.0
 	radar.offset_bottom = 10.0 + RADAR_SIZE + 60.0
+
+	# Arrow pointing home (only outside the station).
+	arrow = Control.new()
+	arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	arrow.set_anchors_preset(Control.PRESET_FULL_RECT)
+	arrow.draw.connect(_draw_arrow)
+	root.add_child(arrow)
 
 	# Bottom left: event feed.
 	feed = VBoxContainer.new()
