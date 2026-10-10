@@ -31,6 +31,7 @@ const SUIT_COLORS := [Color(0.64, 0.81, 0.15), Color(0.92, 0.54, 0.19), Color(0.
 const LOOKS := 8  # 4 suit colours x 2 sheets
 const SPRITE_SCALE := 2.5
 enum Frame { IDLE, RUN_1, RUN_2, CLIMB, REACH, DEAD, FLOAT }
+const FEET := [Vector2(-6.0, 15.0), Vector2(5.0, 15.0)]  # boot thrusters, for a right-facing sprite
 
 # Tethers (who is roped to whom: tethers.gd). Past its length a rope pulls you
 # back; stretch it to Tethers.SNAP_STRETCH and it snaps and you black out.
@@ -62,7 +63,7 @@ var color := Color.WHITE
 var _shake := 0.0
 var _lamp: PointLight2D
 var _sprite: Sprite2D
-var _exhaust: CPUParticles2D
+var _exhausts: Array[CPUParticles2D] = []  # one per boot
 var _jet_sound: AudioStreamPlayer  # local player only
 var _alarm_timer := 0.0
 var _last_pos := Vector2.ZERO
@@ -116,9 +117,11 @@ func _ready() -> void:
 	add_child(shape)
 	_lamp = Station.make_light(Vector2(0, -8), LIGHT_RADIUS, Color(0.85, 0.92, 1.0), LAMP_ENERGY)
 	add_child(_lamp)
-	_exhaust = Effects.thruster(Color(1.0, 0.55, 0.2))
-	_exhaust.show_behind_parent = true
-	add_child(_exhaust)
+	for _foot in FEET:
+		var exhaust := Effects.thruster(Color(1.0, 0.55, 0.2), 2.5)
+		exhaust.show_behind_parent = true
+		add_child(exhaust)
+		_exhausts.append(exhaust)
 
 	net_pos = global_position
 	oxygen = GameState.oxygen_capacity()
@@ -175,10 +178,11 @@ func _process(delta: float) -> void:
 	# Helmet lamp dims indoors so it doesn't blow out the station's own light.
 	_lamp.energy = move_toward(_lamp.energy, 0.15 if in_station else LAMP_ENERGY, delta * 2.0)
 	_animate(delta)
-	# Jetpack exhaust, puffed out of our back, opposite to the way we thrust.
-	_exhaust.emitting = thrust != Vector2.ZERO and not is_blacked_out
-	_exhaust.position = Vector2(-10.0 * facing, 4.0)
-	_exhaust.direction = -thrust
+	# Boot thruster exhaust from each foot, opposite to the way we thrust.
+	for i in FEET.size():
+		_exhausts[i].emitting = thrust != Vector2.ZERO and not is_blacked_out
+		_exhausts[i].position = Vector2(FEET[i].x * facing, FEET[i].y)
+		_exhausts[i].direction = -thrust
 	if is_multiplayer_authority():
 		_play_local_sounds(delta)
 	queue_redraw()
@@ -422,14 +426,14 @@ func _draw() -> void:
 
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2(facing, 1.0))  # mirror when facing left
 
-		# Jetpack flame from the back, pointing away from the thrust direction.
+		# Boot blaster flames from each foot, pointing away from the thrust direction.
 		if thrust != Vector2.ZERO:
 			var flame_dir := Vector2(-thrust.x * facing, -thrust.y).normalized()
-			var nozzle := Vector2(-10.0, 4.0)
-			var side := flame_dir.orthogonal() * 4.0
-			var length := 14.0 + randf() * 9.0
-			draw_colored_polygon(PackedVector2Array([nozzle + side, nozzle - side, nozzle + flame_dir * length]), Color(1.0, 0.5, 0.15))
-			draw_colored_polygon(PackedVector2Array([nozzle + side * 0.5, nozzle - side * 0.5, nozzle + flame_dir * length * 0.6]), Color(1.0, 0.92, 0.45))
+			var side := flame_dir.orthogonal() * 3.0
+			for nozzle: Vector2 in FEET:
+				var length := 10.0 + randf() * 7.0
+				draw_colored_polygon(PackedVector2Array([nozzle + side, nozzle - side, nozzle + flame_dir * length]), Color(1.0, 0.5, 0.15))
+				draw_colored_polygon(PackedVector2Array([nozzle + side * 0.5, nozzle - side * 0.5, nozzle + flame_dir * length * 0.6]), Color(1.0, 0.92, 0.45))
 
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
