@@ -5,8 +5,8 @@ extends Area2D
 ## shop and radar open. Calls set_in_station(true/false) on players.
 
 const HALF_SIZE := Vector2(320.0, 150.0)  # pressurised interior; the deck is the bottom edge
-const AIRLOCK_HEIGHT := 110.0
-const WALL := 16.0
+const AIRLOCK_HEIGHT := 130.0  # Taller doors
+const WALL := 12.0  # Less wide / thinner door frame walls
 const BEACON_POS := Vector2(270.0, -276.0)
 
 var _beacon: PointLight2D
@@ -187,7 +187,33 @@ func _draw() -> void:
 
 
 func _draw_console(base: Vector2, screen_color: Color, label: String, font: Font) -> void:
-	draw_rect(Rect2(base.x - 40.0, base.y - 60.0, 80.0, 60.0), Color(0.25, 0.27, 0.32))
-	draw_rect(Rect2(base.x - 32.0, base.y - 104.0, 64.0, 44.0), Color(0.15, 0.16, 0.2))
-	draw_rect(Rect2(base.x - 27.0, base.y - 99.0, 54.0, 34.0), screen_color.darkened(0.6))
-	draw_string(font, Vector2(base.x - 40.0, base.y - 76.0), label, HORIZONTAL_ALIGNMENT_CENTER, 80.0, 14, screen_color)
+	# Sleek sci-fi projector base on the floor
+	draw_rect(Rect2(base.x - 26.0, base.y - 10.0, 52.0, 10.0), Color(0.25, 0.28, 0.34))
+	draw_rect(Rect2(base.x - 18.0, base.y - 8.0, 36.0, 6.0), Color(0.15, 0.17, 0.22))
+	
+	# Holographic projection field (translucent glowing box)
+	var holo_rect := Rect2(base.x - 36.0, base.y - 85.0, 72.0, 65.0)
+	
+	# Light cone projection triangle from the lens to the holographic screen
+	var lens_point := Vector2(base.x, base.y - 5.0)
+	var screen_bottom_left := Vector2(holo_rect.position.x, holo_rect.end.y)
+	var screen_bottom_right := Vector2(holo_rect.end.x, holo_rect.end.y)
+	
+	var cone_points := PackedVector2Array([lens_point, screen_bottom_left, screen_bottom_right])
+	var cone_color := Color(screen_color.r, screen_color.g, screen_color.b, 0.15)
+	draw_polygon(cone_points, PackedColorArray([cone_color, cone_color, cone_color]))
+	
+	# Draw the floating holographic panel
+	draw_rect(holo_rect, Color(screen_color.r, screen_color.g, screen_color.b, 0.12))
+	draw_rect(holo_rect, Color(screen_color.r, screen_color.g, screen_color.b, 0.5), false, 1.5)
+	
+	# Glowing holographic scanlines
+	for i in range(4):
+		var y_pos := base.y - 75.0 + (i * 14.0)
+		draw_line(Vector2(base.x - 32.0, y_pos), Vector2(base.x + 32.0, y_pos), Color(screen_color.r, screen_color.g, screen_color.b, 0.25), 1.0)
+	
+	# Floating holographic label text
+	draw_string(font, Vector2(base.x - 36.0, base.y - 45.0), label, HORIZONTAL_ALIGNMENT_CENTER, 72.0, 15, screen_color)
+	
+	# Projector emitter lens glow point
+	draw_circle(lens_point, 2.5, screen_color)
