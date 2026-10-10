@@ -23,8 +23,6 @@ const DARKNESS_COLOR := Color(0.07, 0.07, 0.11)
 @onready var station: Station = $Station
 
 var loot_root: Node2D
-var _stars: Node2D
-var _star_data: Array[Vector3] = []  # x, y in 0..1 screen space, z = depth
 
 
 func _ready() -> void:
@@ -32,7 +30,11 @@ func _ready() -> void:
 	spawner.spawn_path = spawner.get_path_to(players)
 	spawner.spawn_function = _spawn_player
 	_spawn_loot()
-	_build_sky()
+	add_child(SpaceBackground.new())
+	if DARKNESS_ENABLED:
+		var darkness := CanvasModulate.new()
+		darkness.color = DARKNESS_COLOR
+		add_child(darkness)
 
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
@@ -48,10 +50,6 @@ func _ready() -> void:
 		_add_player(1, NetworkManager.player_name)
 		if NetworkManager.dev_money > 0:
 			GameState.add_money(NetworkManager.dev_money)
-
-
-func _process(_delta: float) -> void:
-	_stars.queue_redraw()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -149,42 +147,3 @@ func sync_loot(taken: PackedStringArray) -> void:
 func _on_game_reset() -> void:
 	for loot: Loot in get_tree().get_nodes_in_group("loot"):
 		loot.reset()
-
-
-# --- Sky and darkness --------------------------------------------------------
-
-func _build_sky() -> void:
-	# Stars live on their own canvas layer so the darkness doesn't hide them.
-	var sky := CanvasLayer.new()
-	sky.layer = -10
-	add_child(sky)
-	_stars = Node2D.new()
-	_stars.draw.connect(_draw_sky)
-	sky.add_child(_stars)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 999
-	for i in 220:
-		_star_data.append(Vector3(rng.randf(), rng.randf(), rng.randf()))
-
-	if DARKNESS_ENABLED:
-		var darkness := CanvasModulate.new()
-		darkness.color = DARKNESS_COLOR
-		add_child(darkness)
-
-
-func _draw_sky() -> void:
-	var size := get_viewport_rect().size
-	var camera_offset := get_viewport().get_canvas_transform().origin
-	# A distant planet that barely moves.
-	var planet := Vector2(size.x * 0.9, size.y * 0.86) + camera_offset * 0.01
-	_stars.draw_circle(planet, 64.0, Color(0.22, 0.13, 0.3))
-	_stars.draw_circle(planet + Vector2(-12, -12), 50.0, Color(0.3, 0.18, 0.38))
-	_stars.draw_arc(planet, 96.0, PI * 0.9, PI * 2.1, 48, Color(0.5, 0.4, 0.6, 0.5), 3.0)
-	# Parallax stars: nearer (higher z) stars move faster and shine brighter.
-	for star in _star_data:
-		var parallax := 0.05 + star.z * 0.25
-		var pos := Vector2(
-			fposmod(star.x * size.x + camera_offset.x * parallax, size.x),
-			fposmod(star.y * size.y + camera_offset.y * parallax, size.y))
-		var star_size := 1.0 + floorf(star.z * 2.5)
-		_stars.draw_rect(Rect2(pos, Vector2(star_size, star_size)), Color(1, 1, 1, 0.25 + star.z * 0.75))
