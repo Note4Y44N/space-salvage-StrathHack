@@ -18,25 +18,57 @@ func _ready() -> void:
 	collision_layer = 0
 	collision_mask = 2  # players
 
+	# Area trigger for entering/exiting the station
 	var area_shape := CollisionShape2D.new()
 	var area_rect := RectangleShape2D.new()
 	area_rect.size = HALF_SIZE * 2.0
 	area_shape.shape = area_rect
 	add_child(area_shape)
 
-	# The deck is one-way, so you can jetpack up through it from underneath.
-	var deck := StaticBody2D.new()
-	deck.collision_layer = 1
-	deck.collision_mask = 0
+	# -------------------------------------------------------------
+	# SOLID WALLS & DECK PHYSICS
+	# -------------------------------------------------------------
+	var walls_body := StaticBody2D.new()
+	walls_body.collision_layer = 1
+	walls_body.collision_mask = 0
+
+	# 1. Solid Ceiling (Top Wall)
+	var ceiling_shape := CollisionShape2D.new()
+	var ceiling_rect := RectangleShape2D.new()
+	ceiling_rect.size = Vector2((HALF_SIZE.x + WALL) * 2.0, WALL)
+	ceiling_shape.shape = ceiling_rect
+	ceiling_shape.position = Vector2(0.0, -HALF_SIZE.y - (WALL / 2.0))
+	walls_body.add_child(ceiling_shape)
+
+	# 2. Upper Left Wall (stops above the left airlock door)
+	var left_wall_height := (HALF_SIZE.y * 2.0) - AIRLOCK_HEIGHT
+	var left_wall_shape := CollisionShape2D.new()
+	var left_wall_rect := RectangleShape2D.new()
+	left_wall_rect.size = Vector2(WALL, left_wall_height)
+	left_wall_shape.shape = left_wall_rect
+	left_wall_shape.position = Vector2(-HALF_SIZE.x - (WALL / 2.0), -HALF_SIZE.y + (left_wall_height / 2.0))
+	walls_body.add_child(left_wall_shape)
+
+	# 3. Upper Right Wall (stops above the right airlock door)
+	var right_wall_shape := CollisionShape2D.new()
+	var right_wall_rect := RectangleShape2D.new()
+	right_wall_rect.size = Vector2(WALL, left_wall_height)
+	right_wall_shape.shape = right_wall_rect
+	right_wall_shape.position = Vector2(HALF_SIZE.x + (WALL / 2.0), -HALF_SIZE.y + (left_wall_height / 2.0))
+	walls_body.add_child(right_wall_shape)
+
+	# 4. One-Way Deck (Bottom Floor)
 	var deck_shape := CollisionShape2D.new()
 	var deck_rect := RectangleShape2D.new()
 	deck_rect.size = Vector2(HALF_SIZE.x * 2.0, 16.0)
 	deck_shape.shape = deck_rect
 	deck_shape.position = Vector2(0.0, HALF_SIZE.y + 8.0)
 	deck_shape.one_way_collision = true
-	deck.add_child(deck_shape)
-	add_child(deck)
+	walls_body.add_child(deck_shape)
 
+	add_child(walls_body)
+
+	# Lights and Signals
 	add_child(make_light(Vector2(0, -20), 560.0, Color(1.0, 0.93, 0.8), 0.9))
 	_beacon = make_light(BEACON_POS, 170.0, Color(1.0, 0.25, 0.2), 1.0)
 	add_child(_beacon)
