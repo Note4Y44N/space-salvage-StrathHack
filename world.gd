@@ -12,6 +12,7 @@ const LOOT_SEED := 12345
 const LOOT_COUNT := 160
 const LOOT_MIN_DIST := 450.0
 const LOOT_MAX_DIST := 3400.0
+const RELIC_DISTANCES := [1500.0, 2100.0, 2700.0]  # one heavy relic at each distance
 
 ## The "Discord game" twist: space is dark, divers only see their helmet light,
 ## and whoever is in the station gets the radar. Turn off to make it easy.
@@ -30,6 +31,7 @@ func _ready() -> void:
 	spawner.spawn_path = spawner.get_path_to(players)
 	spawner.spawn_function = _spawn_player
 	_spawn_loot()
+	_spawn_relics()
 	add_child(SpaceBackground.new())
 	if DARKNESS_ENABLED:
 		var darkness := CanvasModulate.new()
@@ -126,6 +128,20 @@ func _spawn_loot() -> void:
 		loot_root.add_child(loot)
 
 
+## Heavy relics: also deterministic, but the host streams their position.
+func _spawn_relics() -> void:
+	var relic_root := Node2D.new()
+	relic_root.name = "Relics"
+	add_child(relic_root)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = LOOT_SEED + 1
+	for i in RELIC_DISTANCES.size():
+		var relic := HeavyRelic.new()
+		relic.name = "Relic%d" % i
+		relic.position = Vector2.from_angle(rng.randf() * TAU) * RELIC_DISTANCES[i]
+		relic_root.add_child(relic)
+
+
 ## Tell a late joiner which loot is already gone.
 func _send_loot_state(peer_id: int) -> void:
 	var taken := PackedStringArray()
@@ -147,3 +163,5 @@ func sync_loot(taken: PackedStringArray) -> void:
 func _on_game_reset() -> void:
 	for loot: Loot in get_tree().get_nodes_in_group("loot"):
 		loot.reset()
+	for relic: HeavyRelic in get_tree().get_nodes_in_group("relics"):
+		relic.reset()

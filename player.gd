@@ -102,8 +102,11 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	net_pos = global_position
 	_update_oxygen(delta)
-	if in_station and Input.is_action_just_pressed("interact"):
-		sell()
+	if Input.is_action_just_pressed("interact"):
+		if in_station:
+			sell()
+		else:
+			toggle_grab()
 
 
 func _process(delta: float) -> void:
@@ -134,6 +137,8 @@ func _move_in_station(input: Vector2, delta: float) -> void:
 
 func _move_in_space(input: Vector2, delta: float) -> void:
 	var load_factor := maxf(MIN_LOAD_FACTOR, 1.0 - CARRY_SLOWDOWN * carried_count)
+	if carried_relic():
+		load_factor = minf(load_factor, HeavyRelic.CARRIER_SPEED_FACTOR)
 	velocity += input * GameState.thrust() * load_factor * delta
 	velocity = velocity.limit_length(GameState.max_speed() * load_factor)
 	velocity *= maxf(0.0, 1.0 - SPACE_DRAG * delta)
@@ -162,6 +167,32 @@ func can_collect() -> bool:
 func add_cargo(value: int) -> void:
 	carried_value += value
 	carried_count += 1
+
+
+## E outside the station: grab the nearest heavy relic, or let go of it.
+func toggle_grab() -> void:
+	var relic := carried_relic()
+	if relic:
+		relic.request_release.rpc_id(1)
+		return
+	relic = nearest_relic()
+	if relic:
+		relic.request_grab.rpc_id(1)
+
+
+func carried_relic() -> HeavyRelic:
+	for relic: HeavyRelic in get_tree().get_nodes_in_group("relics"):
+		if relic.is_carried_by(name.to_int()):
+			return relic
+	return null
+
+
+## The closest active relic within grabbing range, or null.
+func nearest_relic() -> HeavyRelic:
+	for relic: HeavyRelic in get_tree().get_nodes_in_group("relics"):
+		if relic.active and global_position.distance_to(relic.global_position) <= HeavyRelic.GRAB_RANGE:
+			return relic
+	return null
 
 
 func sell() -> void:

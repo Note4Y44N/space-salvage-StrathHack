@@ -6,11 +6,13 @@ Drift out of the station in zero-g, grab gold (the further out, the more it's wo
 
 **Why you have to talk:** space is dark, so divers only see what's in their helmet lamp. Anyone standing in the station gets the **radar**, which shows every piece of loot and every teammate's oxygen. They have to talk the divers to the gold and back home ("left! LEFT! you've got 10% air!"). If nobody stays on the radar, everyone is flying blind. You can turn this off with `DARKNESS_ENABLED` in `world.gd`.
 
+**Heavy relics:** three glowing relics worth $500 each float far out. They're too heavy for one diver: they only move while **two** players hold on (E), and they drift towards the middle of the carriers, so you have to agree on which way to go. Let go too far apart and you lose your grip.
+
 ## Controls
 | Key | Action |
 |---|---|
 | WASD / arrows | Walk + jetpack boots (in the station), thrust (in space) |
-| E | Sell carried cargo (in the station) |
+| E | Sell carried cargo (in the station) / grab or let go of a heavy relic (outside) |
 | 1 / 2 / 3 | Buy oxygen tank / jetpack / pod part (in the station) |
 | Esc | Leave to menu |
 
