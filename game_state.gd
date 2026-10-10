@@ -26,6 +26,7 @@ var speed_level := 0
 var parts := 0
 var tether_level := 0
 var total_earned := 0
+var _celebrated := false  # game_won fires once per round (the host bumps parts before syncing)
 
 
 func _ready() -> void:
@@ -88,6 +89,7 @@ func reset() -> void:
 	parts = 0
 	tether_level = 0
 	total_earned = 0
+	_celebrated = false
 
 
 @rpc("any_peer", "call_local", "reliable")
@@ -125,7 +127,6 @@ func buy_upgrade(kind: String, buyer_name: String) -> void:
 
 @rpc("authority", "call_local", "reliable")
 func sync_state(new_money: int, new_oxygen_level: int, new_speed_level: int, new_parts: int, new_tether_level: int, new_total: int) -> void:
-	var had_won := has_won()
 	money = new_money
 	oxygen_level = new_oxygen_level
 	speed_level = new_speed_level
@@ -134,7 +135,8 @@ func sync_state(new_money: int, new_oxygen_level: int, new_speed_level: int, new
 	total_earned = new_total
 	print("[%s] team $%d  tank %d  jetpack %d  parts %d" % [NetworkManager.player_name, money, oxygen_level, speed_level, parts])
 	state_changed.emit()
-	if has_won() and not had_won:
+	if has_won() and not _celebrated:
+		_celebrated = true
 		game_won.emit()
 
 

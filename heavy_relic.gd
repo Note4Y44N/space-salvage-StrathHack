@@ -92,10 +92,18 @@ func _deliver() -> void:
 		names.append(_player(id).display_name)
 	GameState.add_money(VALUE)
 	GameState.announce.rpc("%s hauled home an alien relic! +$%d" % [" & ".join(names), VALUE])
+	celebrate.rpc(position)
 	carriers.clear()
 	active = false
 	position = home
 	get_tree().create_timer(RESPAWN_TIME).timeout.connect(func() -> void: active = true)
+
+
+## Big cyan burst where the relic was delivered (on everyone's screen).
+@rpc("authority", "call_local", "reliable")
+func celebrate(at: Vector2) -> void:
+	Effects.burst(self, at, GLOW, 90, 320.0, 5.0, 1.2)
+	Sounds.play(self, "relic", 0.0, at)
 
 
 func _release(peer_id: int) -> void:

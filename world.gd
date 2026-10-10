@@ -33,6 +33,9 @@ func _ready() -> void:
 	spawner.spawn_function = _spawn_player
 	_spawn_loot()
 	_spawn_relics()
+	var music := Sounds.loop("music", -14.0)
+	add_child(music)
+	music.play()
 	add_child(SpaceBackground.new())
 	if DARKNESS_ENABLED:
 		var darkness := CanvasModulate.new()

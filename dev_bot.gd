@@ -30,9 +30,7 @@ static func steer(p: Player) -> Vector2:
 	if target == null:
 		return Vector2.ZERO
 	if p.in_station:
-		# Fly out of the roof or walk out of the nearest airlock.
-		if target.global_position.y < -Station.HALF_SIZE.y:
-			return Vector2.UP
+		# The roof is solid: walk out of the airlock on the target's side.
 		return Vector2.RIGHT if target.global_position.x >= 0.0 else Vector2.LEFT
 	return _steer_to(p, target.global_position)
 

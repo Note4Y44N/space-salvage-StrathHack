@@ -37,6 +37,19 @@ var win_panel: ColorRect
 var win_stats: Label
 var restart_button: Button
 var waiting_label: Label
+var vignette: ShaderMaterial
+var confetti: CPUParticles2D
+var _upgrades_seen := 0  # to play a sound whenever anyone buys something
+
+## Red glow around the screen edges; `strength` 0..1 is set every frame.
+const VIGNETTE_SHADER := """
+shader_type canvas_item;
+uniform float strength = 0.0;
+void fragment() {
+	float edge = smoothstep(0.3, 0.75, distance(UV, vec2(0.5)));
+	COLOR = vec4(0.85, 0.05, 0.05, edge * strength);
+}
+"""
 
 
 func _ready() -> void:
@@ -78,6 +91,10 @@ func _process(_delta: float) -> void:
 	crew_label.text = _crew_status()
 	hint_label.text = _hint(low_air)
 	var urgent := low_air or player.rope_strain > 1.1
+	# Pulse the red vignette when you're suffocating or your rope is about to snap.
+	var danger := 1.0 if player.oxygen <= 0.0 and not player.in_station else (0.6 if player.rope_strain > 1.1 else 0.0)
+	var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() / 120.0)
+	vignette.set_shader_parameter("strength", 0.0 if player.is_blacked_out else danger * pulse)
 	hint_label.modulate.a = 0.55 + 0.45 * sin(Time.get_ticks_msec() / 90.0) if urgent else 1.0
 
 	if player.in_station and not player.is_blacked_out:
@@ -103,6 +120,10 @@ func _buy(kind: String) -> void:
 
 
 func _refresh_shop() -> void:
+	var upgrades := GameState.oxygen_level + GameState.speed_level + GameState.tether_level + GameState.parts
+	if upgrades > _upgrades_seen and is_instance_valid(player):
+		Sounds.play(self, "buy", -4.0)
+	_upgrades_seen = upgrades
 	for item in SHOP:
 		var button: Button = shop_buttons[item["kind"]]
 		var cost := GameState.cost_of(item["kind"])
@@ -186,7 +207,13 @@ func _on_blackout(is_out: bool) -> void:
 
 
 func _on_game_won() -> void:
+	# Let everyone watch the escape pod launch first (station.gd), then celebrate.
+	await get_tree().create_timer(Station.POD_LAUNCH_TIME).timeout
+	if not GameState.has_won():
+		return  # the host restarted in the meantime
 	win_panel.visible = true
+	confetti.emitting = true
+	Sounds.play(self, "win")
 	win_stats.text = "All %d repair parts fitted. The escape pod blasts off!\nTeam salvage sold: $%d" % [GameState.PARTS_NEEDED, GameState.total_earned]
 	restart_button.visible = multiplayer.is_server()
 	waiting_label.visible = not multiplayer.is_server()
@@ -194,6 +221,7 @@ func _on_game_won() -> void:
 
 func _on_game_reset() -> void:
 	win_panel.visible = false
+	confetti.emitting = false
 	_refresh_shop()
 
 
@@ -260,6 +288,16 @@ func _build_ui() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
+
+	var vignette_rect := ColorRect.new()
+	vignette_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vignette_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var vignette_shader := Shader.new()
+	vignette_shader.code = VIGNETTE_SHADER
+	vignette = ShaderMaterial.new()
+	vignette.shader = vignette_shader
+	vignette_rect.material = vignette
+	root.add_child(vignette_rect)
 
 	# Top left: team money, oxygen, cargo and distance.
 	var stats := VBoxContainer.new()
@@ -328,7 +366,7 @@ func _build_ui() -> void:
 		button.pressed.connect(_buy.bind(item["kind"]))
 		shop_box.add_child(button)
 		shop_buttons[item["kind"]] = button
-	_label(shop_box, 13, Color(0.8, 0.8, 0.8)).text = "E: sell cargo    1 / 2 / 3: buy"
+	_label(shop_box, 13, Color(0.8, 0.8, 0.8)).text = "E: sell cargo    1 / 2 / 3 / 4: buy"
 
 	# Right: the radar (only inside the station).
 	radar = Control.new()
@@ -402,6 +440,30 @@ func _build_ui() -> void:
 	menu_button.custom_minimum_size = Vector2(0, 44)
 	menu_button.pressed.connect(func() -> void: NetworkManager.leave())
 	win_box.add_child(menu_button)
+
+	# Confetti falling across the whole win screen.
+	confetti = CPUParticles2D.new()
+	confetti.emitting = false
+	confetti.amount = 160
+	confetti.lifetime = 5.0
+	confetti.position = Vector2(get_viewport().get_visible_rect().size.x / 2.0, -20.0)
+	confetti.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	confetti.emission_rect_extents = Vector2(get_viewport().get_visible_rect().size.x / 2.0, 1.0)
+	confetti.direction = Vector2.DOWN
+	confetti.spread = 25.0
+	confetti.gravity = Vector2(0.0, 120.0)
+	confetti.initial_velocity_min = 40.0
+	confetti.initial_velocity_max = 140.0
+	confetti.angular_velocity_min = -360.0
+	confetti.angular_velocity_max = 360.0
+	confetti.scale_amount_min = 4.0
+	confetti.scale_amount_max = 8.0
+	var confetti_colors := Gradient.new()
+	confetti_colors.interpolation_mode = Gradient.GRADIENT_INTERPOLATE_CONSTANT
+	confetti_colors.offsets = PackedFloat32Array([0.0, 0.2, 0.4, 0.6, 0.8])
+	confetti_colors.colors = PackedColorArray([GOLD, RADAR_GREEN, Color(0.3, 0.7, 1.0), Color(1.0, 0.4, 0.6), Color(0.8, 0.5, 1.0)])
+	confetti.color_initial_ramp = confetti_colors
+	win_panel.add_child(confetti)
 
 
 func _label(parent: Control, size: int, color: Color) -> Label:
