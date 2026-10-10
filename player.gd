@@ -410,7 +410,7 @@ func _respawn() -> void:
 	blackout_changed.emit(false)
 
 
-# Drawn behind the sprite: ropes, jetpack flame and loot sack. Then the name tag.
+# Drawn behind the sprite: ropes and jetpack flame. Then the name tag and cargo value.
 func _draw() -> void:
 	if not is_blacked_out:
 		# Each rope is drawn once, by the first player on it.
@@ -430,13 +430,6 @@ func _draw() -> void:
 			var length := 14.0 + randf() * 9.0
 			draw_colored_polygon(PackedVector2Array([nozzle + side, nozzle - side, nozzle + flame_dir * length]), Color(1.0, 0.5, 0.15))
 			draw_colored_polygon(PackedVector2Array([nozzle + side * 0.5, nozzle - side * 0.5, nozzle + flame_dir * length * 0.6]), Color(1.0, 0.92, 0.45))
-
-		# Loot sack on the back grows with cargo.
-		if carried_count > 0:
-			var sack_radius := 6.0 + minf(carried_count, 10.0) * 0.9
-			var sack := Vector2(-14.0 - sack_radius * 0.5, 2.0)
-			draw_circle(sack, sack_radius, Color(0.55, 0.38, 0.2))
-			draw_circle(sack + Vector2(-2, -sack_radius * 0.6), 2.5, Color(1.0, 0.85, 0.3))
 
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
