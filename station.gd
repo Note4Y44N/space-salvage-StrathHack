@@ -5,8 +5,8 @@ extends Area2D
 ## shop and radar open. Calls set_in_station(true/false) on players.
 
 const HALF_SIZE := Vector2(320.0, 150.0)  # pressurised interior; the deck is the bottom edge
-const AIRLOCK_HEIGHT := 110.0
-const WALL := 16.0
+const AIRLOCK_HEIGHT := 130.0  # Taller doors
+const WALL := 12.0  # Less wide / thinner door frame walls
 const BEACON_POS := Vector2(270.0, -276.0)
 
 var _beacon: PointLight2D
@@ -18,25 +18,57 @@ func _ready() -> void:
 	collision_layer = 0
 	collision_mask = 2  # players
 
+	# Area trigger for entering/exiting the station
 	var area_shape := CollisionShape2D.new()
 	var area_rect := RectangleShape2D.new()
 	area_rect.size = HALF_SIZE * 2.0
 	area_shape.shape = area_rect
 	add_child(area_shape)
 
-	# The deck is one-way, so you can jetpack up through it from underneath.
-	var deck := StaticBody2D.new()
-	deck.collision_layer = 1
-	deck.collision_mask = 0
+	# -------------------------------------------------------------
+	# SOLID WALLS & DECK PHYSICS
+	# -------------------------------------------------------------
+	var walls_body := StaticBody2D.new()
+	walls_body.collision_layer = 1
+	walls_body.collision_mask = 0
+
+	# 1. Solid Ceiling (Top Wall)
+	var ceiling_shape := CollisionShape2D.new()
+	var ceiling_rect := RectangleShape2D.new()
+	ceiling_rect.size = Vector2((HALF_SIZE.x + WALL) * 2.0, WALL)
+	ceiling_shape.shape = ceiling_rect
+	ceiling_shape.position = Vector2(0.0, -HALF_SIZE.y - (WALL / 2.0))
+	walls_body.add_child(ceiling_shape)
+
+	# 2. Upper Left Wall (stops above the left airlock door)
+	var left_wall_height := (HALF_SIZE.y * 2.0) - AIRLOCK_HEIGHT
+	var left_wall_shape := CollisionShape2D.new()
+	var left_wall_rect := RectangleShape2D.new()
+	left_wall_rect.size = Vector2(WALL, left_wall_height)
+	left_wall_shape.shape = left_wall_rect
+	left_wall_shape.position = Vector2(-HALF_SIZE.x - (WALL / 2.0), -HALF_SIZE.y + (left_wall_height / 2.0))
+	walls_body.add_child(left_wall_shape)
+
+	# 3. Upper Right Wall (stops above the right airlock door)
+	var right_wall_shape := CollisionShape2D.new()
+	var right_wall_rect := RectangleShape2D.new()
+	right_wall_rect.size = Vector2(WALL, left_wall_height)
+	right_wall_shape.shape = right_wall_rect
+	right_wall_shape.position = Vector2(HALF_SIZE.x + (WALL / 2.0), -HALF_SIZE.y + (left_wall_height / 2.0))
+	walls_body.add_child(right_wall_shape)
+
+	# 4. One-Way Deck (Bottom Floor)
 	var deck_shape := CollisionShape2D.new()
 	var deck_rect := RectangleShape2D.new()
 	deck_rect.size = Vector2(HALF_SIZE.x * 2.0, 16.0)
 	deck_shape.shape = deck_rect
 	deck_shape.position = Vector2(0.0, HALF_SIZE.y + 8.0)
 	deck_shape.one_way_collision = true
-	deck.add_child(deck_shape)
-	add_child(deck)
+	walls_body.add_child(deck_shape)
 
+	add_child(walls_body)
+
+	# Lights and Signals
 	add_child(make_light(Vector2(0, -20), 560.0, Color(1.0, 0.93, 0.8), 0.9))
 	_beacon = make_light(BEACON_POS, 170.0, Color(1.0, 0.25, 0.2), 1.0)
 	add_child(_beacon)
@@ -155,7 +187,33 @@ func _draw() -> void:
 
 
 func _draw_console(base: Vector2, screen_color: Color, label: String, font: Font) -> void:
-	draw_rect(Rect2(base.x - 40.0, base.y - 60.0, 80.0, 60.0), Color(0.25, 0.27, 0.32))
-	draw_rect(Rect2(base.x - 32.0, base.y - 104.0, 64.0, 44.0), Color(0.15, 0.16, 0.2))
-	draw_rect(Rect2(base.x - 27.0, base.y - 99.0, 54.0, 34.0), screen_color.darkened(0.6))
-	draw_string(font, Vector2(base.x - 40.0, base.y - 76.0), label, HORIZONTAL_ALIGNMENT_CENTER, 80.0, 14, screen_color)
+	# Sleek sci-fi projector base on the floor
+	draw_rect(Rect2(base.x - 26.0, base.y - 10.0, 52.0, 10.0), Color(0.25, 0.28, 0.34))
+	draw_rect(Rect2(base.x - 18.0, base.y - 8.0, 36.0, 6.0), Color(0.15, 0.17, 0.22))
+	
+	# Holographic projection field (translucent glowing box)
+	var holo_rect := Rect2(base.x - 36.0, base.y - 85.0, 72.0, 65.0)
+	
+	# Light cone projection triangle from the lens to the holographic screen
+	var lens_point := Vector2(base.x, base.y - 5.0)
+	var screen_bottom_left := Vector2(holo_rect.position.x, holo_rect.end.y)
+	var screen_bottom_right := Vector2(holo_rect.end.x, holo_rect.end.y)
+	
+	var cone_points := PackedVector2Array([lens_point, screen_bottom_left, screen_bottom_right])
+	var cone_color := Color(screen_color.r, screen_color.g, screen_color.b, 0.15)
+	draw_polygon(cone_points, PackedColorArray([cone_color, cone_color, cone_color]))
+	
+	# Draw the floating holographic panel
+	draw_rect(holo_rect, Color(screen_color.r, screen_color.g, screen_color.b, 0.12))
+	draw_rect(holo_rect, Color(screen_color.r, screen_color.g, screen_color.b, 0.5), false, 1.5)
+	
+	# Glowing holographic scanlines
+	for i in range(4):
+		var y_pos := base.y - 75.0 + (i * 14.0)
+		draw_line(Vector2(base.x - 32.0, y_pos), Vector2(base.x + 32.0, y_pos), Color(screen_color.r, screen_color.g, screen_color.b, 0.25), 1.0)
+	
+	# Floating holographic label text
+	draw_string(font, Vector2(base.x - 36.0, base.y - 45.0), label, HORIZONTAL_ALIGNMENT_CENTER, 72.0, 15, screen_color)
+	
+	# Projector emitter lens glow point
+	draw_circle(lens_point, 2.5, screen_color)
