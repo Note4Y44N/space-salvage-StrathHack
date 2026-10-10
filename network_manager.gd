@@ -91,3 +91,24 @@ func _parse_cmdline() -> void:
 			get_tree().create_timer(value.to_float()).timeout.connect(get_tree().quit)
 	if DisplayServer.get_name() == "headless":
 		Engine.max_fps = 60
+		
+func my_code() -> String: 
+	var ips := local_ips()
+	if ips.is_empty():
+		return ""
+	var parts := ips[0].split(".")
+	return parts[2] + "." + parts[3]
+	
+	
+	
+func code_to_ip(code: String) -> String:	
+	var code_parts := code.split(".")
+	var ips := local_ips()
+	
+	if code_parts.size() >= 4 or ips.is_empty():
+		return code
+	var parts := ips[0].split(".")       # our own IP, e.g. ["10", "12", "117", "50"]
+	parts.resize(4 - code_parts.size())  # keep the front, e.g. ["10", "12"]
+	parts.append_array(code_parts)       # add the code, e.g. ["10", "12", "117", "144"]
+	return ".".join(parts)               # "10.12.117.144"
+	
