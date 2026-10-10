@@ -13,6 +13,7 @@ const LOOT_COUNT := 160
 const LOOT_MIN_DIST := 450.0
 const LOOT_MAX_DIST := 3400.0
 const RELIC_DISTANCES := [1500.0, 2100.0, 2700.0]  # one heavy relic at each distance
+const JOIN_TIMEOUT := 10.0  # seconds before a join attempt gives up
 
 ## The "Discord game" twist: space is dark, divers only see their helmet light,
 ## and whoever is in the station gets the radar. Turn off to make it easy.
@@ -52,6 +53,9 @@ func _ready() -> void:
 		_add_player(1, NetworkManager.player_name)
 		if NetworkManager.dev_money > 0:
 			GameState.add_money(NetworkManager.dev_money)
+	else:
+		# ENet can take ~30 s to give up on a wrong address; fail faster and clearer.
+		get_tree().create_timer(JOIN_TIMEOUT).timeout.connect(_on_join_timeout)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -115,7 +119,16 @@ func _on_peer_disconnected(id: int) -> void:
 
 
 func _on_connection_failed() -> void:
-	NetworkManager.leave("Could not connect to %s." % NetworkManager.join_ip)
+	NetworkManager.leave(_join_help())
+
+
+func _on_join_timeout() -> void:
+	if multiplayer.multiplayer_peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		NetworkManager.leave(_join_help())
+
+
+func _join_help() -> String:
+	return "Couldn't reach %s. Check the join code, that you're on the same Wi-Fi as the host, and that the host allowed Godot through the firewall." % NetworkManager.join_ip
 
 
 func _on_server_disconnected() -> void:

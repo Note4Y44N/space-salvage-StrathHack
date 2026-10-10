@@ -19,7 +19,7 @@ Drift out of the station in zero-g, grab gold (the further out, the more it's wo
 ## Testing multiplayer
 - **In the editor:** Debug > Customize Run Instances > enable multiple instances. Host in one and join `127.0.0.1` in the others. You can skip the menu with per-instance launch arguments: `--host` for one instance and `--join` for the others.
 - **Against bots:** add `--bot` to an instance and it plays itself (`dev_bot.gd`).
-- **Over LAN:** the host's IP is shown on the menu and in the bottom-right in-game. The host uses UDP port 9999, so allow Godot through Windows Firewall when it asks.
+- **Over LAN (join codes):** the host's screen shows a short **join code** in the bottom-right, e.g. `Join code: 144`. Friends on the same Wi-Fi type just `144` and click Join; the game fills in the rest of the IP from their own. On big networks (like uni Wi-Fi) the third number can differ between laptops; if `144` fails, use the longer code shown next to it (e.g. `117.144`). A full IP still works too. The host uses UDP port 9999, so allow Godot through Windows Firewall when it asks, including on **Public** networks. If joining fails on venue Wi-Fi, everyone switches to one phone's hotspot.
 - **Headless smoke test** (two bots, no windows):
   ```
   godot --headless --path . -- --host --local --bot --name=A --quit-after-sec=40

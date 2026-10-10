@@ -54,7 +54,7 @@ func _process(_delta: float) -> void:
 			return
 		player.blackout_changed.connect(_on_blackout)
 		if multiplayer.is_server() and not NetworkManager.local_ips().is_empty():
-			ip_label.text = "Join code: " + NetworkManager.my_code()
+			ip_label.text = "Join code: %s   (if that fails: %s)" % [NetworkManager.my_code(), NetworkManager.my_code(2)]
 
 	var ratio := clampf(player.oxygen / GameState.oxygen_capacity(), 0.0, 1.0)
 	var low_air := ratio < Player.LOW_OXYGEN and not player.in_station

@@ -49,7 +49,7 @@ func _build_ui() -> void:
 		_add_label(box, NetworkManager.last_error, 15, Color(1.0, 0.45, 0.4))
 	var ips := NetworkManager.local_ips()
 	if not ips.is_empty():
-		_add_label(box, "Hosting? Friends join your LAN IP: " + ", ".join(ips), 13, Color(0.6, 0.7, 0.8))
+		_add_label(box, "Hosting? Your join code will be %s  (full IP: %s)" % [NetworkManager.my_code(), ips[0]], 13, Color(0.6, 0.7, 0.8))
 	_add_label(box, "WASD / arrows: move    E: sell    1-3: buy    Esc: leave", 13, Color(0.6, 0.7, 0.8))
 
 
