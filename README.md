@@ -8,12 +8,17 @@ Drift out of the station in zero-g, grab gold (the further out, the more it's wo
 
 **Heavy relics:** three glowing relics worth $500 each float far out. They're too heavy for one diver: they only move while **two** players hold on (E), and they drift towards the middle of the carriers, so you have to agree on which way to go. Let go too far apart and you lose your grip.
 
+**Tethers:** you are always roped to a teammate (pairs in join order; an odd one out makes a chain of three). A lone diver is roped to the station. Past its length the rope pulls you back and turns red; keep pulling and it **snaps and you both black out**. Whoever stays home presses **R** to take the radar, which unclips their tether. Buy **Longer Tether** (4) in the shop to roam further.
+
+**Air and health:** when your tank runs dry you have about 5 seconds (the HP bar) before you black out. Outside, a gold arrow points home: bigger when you are close, smaller the further out you go.
+
 ## Controls
 | Key | Action |
 |---|---|
 | WASD / arrows | Walk + jetpack boots (in the station), thrust (in space) |
 | E | Sell carried cargo (in the station) / grab or let go of a heavy relic (outside) |
-| 1 / 2 / 3 | Buy oxygen tank / jetpack / pod part (in the station) |
+| R | Take or leave the radar (in the station; unclips your tether) |
+| 1 / 2 / 3 / 4 | Buy oxygen tank / jetpack / pod part / longer tether (in the station) |
 | Esc | Leave to menu |
 
 ## Testing multiplayer
@@ -39,6 +44,8 @@ Drift out of the station in zero-g, grab gold (the further out, the more it's wo
 | `station.gd` | Side-on station at the origin: pressurised area, one-way deck, lights, escape pod. |
 | `hud.gd` | Stats, oxygen bar, shop, radar, event feed, blackout fade, win screen. |
 | `dev_bot.gd` | Autopilot used by `--bot`. |
+| `tethers.gd` | Who is roped to whom (the rope physics are in `player.gd`). |
+| `heavy_relic.gd` | Two-player relics: the host simulates them and streams their position. |
 
 ## Credits
 - Astronaut sprites: [Spacers](https://opengameart.org/content/spacers) by zwonky (CC0).
