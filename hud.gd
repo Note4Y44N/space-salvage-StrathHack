@@ -39,6 +39,7 @@ var restart_button: Button
 var waiting_label: Label
 var vignette: ShaderMaterial
 var confetti: CPUParticles2D
+var _upgrades_seen := 0  # to play a sound whenever anyone buys something
 
 ## Red glow around the screen edges; `strength` 0..1 is set every frame.
 const VIGNETTE_SHADER := """
@@ -119,6 +120,10 @@ func _buy(kind: String) -> void:
 
 
 func _refresh_shop() -> void:
+	var upgrades := GameState.oxygen_level + GameState.speed_level + GameState.tether_level + GameState.parts
+	if upgrades > _upgrades_seen and is_instance_valid(player):
+		Sounds.play(self, "buy", -4.0)
+	_upgrades_seen = upgrades
 	for item in SHOP:
 		var button: Button = shop_buttons[item["kind"]]
 		var cost := GameState.cost_of(item["kind"])
@@ -208,6 +213,7 @@ func _on_game_won() -> void:
 		return  # the host restarted in the meantime
 	win_panel.visible = true
 	confetti.emitting = true
+	Sounds.play(self, "win")
 	win_stats.text = "All %d repair parts fitted. The escape pod blasts off!\nTeam salvage sold: $%d" % [GameState.PARTS_NEEDED, GameState.total_earned]
 	restart_button.visible = multiplayer.is_server()
 	waiting_label.visible = not multiplayer.is_server()

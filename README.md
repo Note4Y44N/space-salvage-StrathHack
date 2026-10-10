@@ -46,10 +46,13 @@ Drift out of the station in zero-g, grab gold (the further out, the more it's wo
 | `dev_bot.gd` | Autopilot used by `--bot`. |
 | `tethers.gd` | Who is roped to whom (the rope physics are in `player.gd`). |
 | `effects.gd` | Particle helpers: one-off glowing bursts and the looping jetpack exhaust. |
+| `sounds.gd` | Sound helpers: one-off (optionally positional) sounds and looping music/jetpack. |
 | `heavy_relic.gd` | Two-player relics: the host simulates them and streams their position. |
 
 ## Credits
 - Astronaut sprites: [Spacers](https://opengameart.org/content/spacers) by zwonky (CC0).
+- Sound effects and jingles: [Kenney.nl](https://kenney.nl/assets/category:Audio) (Sci-fi, Impact and Interface Sounds, Music Jingles; CC0).
+- Music: [Observing The Star](https://opengameart.org/content/another-space-background-track) by yd (CC0).
 - Nebula background shader adapted from [Pixel Space Background Generator](https://deep-fold.itch.io/space-background-generator) by Deep-Fold (MIT), via the [Godot 4 port](https://github.com/Muneeb1195/PixelSpace) by Muneeb1195.
 
 ## Team rules

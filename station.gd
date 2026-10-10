@@ -103,6 +103,7 @@ func _process(_delta: float) -> void:
 func _launch_pod() -> void:
 	_pod_flame.emitting = true
 	_pod_light.energy = 1.3
+	Sounds.play(self, "launch", -2.0)
 	_pod_rumble = true
 	var tween := create_tween()
 	tween.tween_interval(0.8)  # engines fire, pod rumbles on the roof...

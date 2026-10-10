@@ -63,6 +63,8 @@ var _shake := 0.0
 var _lamp: PointLight2D
 var _sprite: Sprite2D
 var _exhaust: CPUParticles2D
+var _jet_sound: AudioStreamPlayer  # local player only
+var _alarm_timer := 0.0
 var _last_pos := Vector2.ZERO
 var _anim_time := 0.0
 var _rope_rest := {}     # rope partner id (0 = station) -> current rope length
@@ -128,6 +130,8 @@ func _ready() -> void:
 		camera.make_current()
 		GameState.game_reset.connect(_respawn)
 		GameState.game_won.connect(_on_game_won)
+		_jet_sound = Sounds.loop("thruster", -18.0)
+		add_child(_jet_sound)
 		print("[%s] spawned" % display_name)
 
 
@@ -175,6 +179,8 @@ func _process(delta: float) -> void:
 	_exhaust.emitting = thrust != Vector2.ZERO and not is_blacked_out
 	_exhaust.position = Vector2(-10.0 * facing, 4.0)
 	_exhaust.direction = -thrust
+	if is_multiplayer_authority():
+		_play_local_sounds(delta)
 	queue_redraw()
 
 
@@ -289,6 +295,7 @@ func set_on_radar(value: bool) -> void:
 		return
 	on_radar = value
 	_rope_rest.clear()
+	Sounds.play(self, "radar", -6.0)
 	if on_radar:
 		GameState.announce.rpc("%s is on the radar" % display_name)
 
@@ -352,10 +359,13 @@ func sell() -> void:
 func fx(kind: String) -> void:
 	match kind:
 		"sell":  # coin fountain
+			Sounds.play(self, "sell", -4.0, global_position)
 			Effects.burst(self, global_position, Color(1.0, 0.85, 0.3), 45, 240.0, 4.0, 0.9)
 		"poof":  # last gasp of air
+			Sounds.play(self, "blackout", 0.0, global_position)
 			Effects.burst(self, global_position, Color(0.7, 0.85, 1.0), 40, 170.0, 5.0, 0.8)
 		"snap":  # bits of rope flying everywhere
+			Sounds.play(self, "snap", 0.0, global_position)
 			Effects.burst(self, global_position, Color(1.0, 0.3, 0.2), 30, 300.0, 3.0, 0.6)
 			Effects.burst(self, global_position, Color(0.85, 0.8, 0.65), 20, 200.0, 2.0, 0.9)
 
@@ -450,3 +460,17 @@ func _draw_rope(end: Vector2, length: float) -> void:
 		var t := i / 16.0
 		points.append(end * t + normal * sin(t * PI) * slack * wobble)
 	draw_polyline(points, color, 2.0)
+
+
+## Sounds only we hear: our jetpack hiss, and an alarm while suffocating.
+func _play_local_sounds(delta: float) -> void:
+	var thrusting := thrust != Vector2.ZERO and not is_blacked_out
+	if thrusting != _jet_sound.playing:
+		if thrusting:
+			_jet_sound.play()
+		else:
+			_jet_sound.stop()
+	_alarm_timer -= delta
+	if oxygen <= 0.0 and not in_station and not is_blacked_out and _alarm_timer <= 0.0:
+		_alarm_timer = 0.6
+		Sounds.play(self, "alarm", -8.0)

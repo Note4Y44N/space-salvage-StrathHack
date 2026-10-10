@@ -103,6 +103,7 @@ func _deliver() -> void:
 @rpc("authority", "call_local", "reliable")
 func celebrate(at: Vector2) -> void:
 	Effects.burst(self, at, GLOW, 90, 320.0, 5.0, 1.2)
+	Sounds.play(self, "relic", 0.0, at)
 
 
 func _release(peer_id: int) -> void:
