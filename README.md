@@ -38,6 +38,9 @@ Drift out of the station in zero-g, grab gold (the further out, the more it's wo
 | `hud.gd` | Stats, oxygen bar, shop, radar, event feed, blackout fade, win screen. |
 | `dev_bot.gd` | Autopilot used by `--bot`. |
 
+## Credits
+- Nebula background shader adapted from [Pixel Space Background Generator](https://deep-fold.itch.io/space-background-generator) by Deep-Fold (MIT), via the [Godot 4 port](https://github.com/Muneeb1195/PixelSpace) by Muneeb1195.
+
 ## Team rules
 - One owner per `.tscn` file (they merge badly). Scripts merge fine.
 - `git pull` before a task, and commit + push every 20–30 min.
