@@ -80,7 +80,18 @@ func register_player(player_name: String) -> void:
 
 func _add_player(id: int, player_name: String) -> void:
 	if not players.has_node(str(id)):
-		spawner.spawn({"id": id, "name": player_name})
+		spawner.spawn({"id": id, "name": player_name, "look": _free_look()})
+
+
+## The first sprite look nobody is wearing yet (wraps around past 8 players).
+func _free_look() -> int:
+	var taken := []
+	for player: Player in players.get_children():
+		taken.append(player.look)
+	for look in Player.LOOKS:
+		if look not in taken:
+			return look
+	return players.get_child_count() % Player.LOOKS
 
 
 ## Runs on every peer (host and clients) with the same data.
@@ -89,7 +100,8 @@ func _spawn_player(data: Variant) -> Node:
 	var player: Player = PLAYER_SCENE.instantiate()
 	player.name = str(id)
 	player.display_name = data["name"]
-	player.position = station.spawn_point(id)
+	player.look = data["look"]
+	player.position = station.spawn_point(player.look)
 	return player
 
 

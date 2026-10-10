@@ -41,6 +41,7 @@ Drift out of the station in zero-g, grab gold (the further out, the more it's wo
 | `dev_bot.gd` | Autopilot used by `--bot`. |
 
 ## Credits
+- Astronaut sprites: [Spacers](https://opengameart.org/content/spacers) by zwonky (CC0).
 - Nebula background shader adapted from [Pixel Space Background Generator](https://deep-fold.itch.io/space-background-generator) by Deep-Fold (MIT), via the [Godot 4 port](https://github.com/Muneeb1195/PixelSpace) by Muneeb1195.
 
 ## Team rules
