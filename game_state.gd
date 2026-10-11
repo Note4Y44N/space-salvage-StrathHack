@@ -20,7 +20,7 @@ const THRUST := [520.0, 640.0, 780.0, 940.0]        # zero-g acceleration, px/s^
 const MAX_SPEED := [300.0, 360.0, 430.0, 520.0]     # px/s
 const PARTS_NEEDED := 5
 
-var money := 0
+var money := 7000
 var oxygen_level := 0
 var speed_level := 0
 var parts := 0
